@@ -1,0 +1,22 @@
+{
+  "name": "fragments",
+  "private":"true",
+  "version": "0.0.1",
+  "description": "Fragments back-end API",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/krutinpolra/fragments.git"
+  },
+  "keywords": [],
+  "author": "KRUTIN BHARATBHAI POLRA",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/krutinpolra/fragments/issues"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
