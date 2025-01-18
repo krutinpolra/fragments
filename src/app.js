@@ -10,6 +10,14 @@ const passport = require('passport');
 // Create an express app instance we can use to attach middleware and HTTP routes
 const app = express();
 
+// CORS configuration
+const corsOptions = {
+  origin: 'http://localhost:1234', // Allow only this origin
+  optionsSuccessStatus: 200,      // For legacy browsers (IE11) that choke on 204
+};
+// Use CORS middleware with options
+app.use(cors(corsOptions));
+
 // Define our routes
 app.use('/', require('./routes'));
 
@@ -26,9 +34,6 @@ const pino = require('pino-http')({
 // Use gzip/deflate compression middleware
 app.use(compression());
 
-// Set up our passport authentication middleware
-passport.use(authenticate.strategy());
-app.use(passport.initialize());
 
 // Use pino logging middleware
 app.use(pino);
@@ -41,6 +46,10 @@ app.use(cors());
 
 // Use gzip/deflate compression middleware
 app.use(compression());
+
+// Set up our passport authentication middleware
+passport.use(authenticate.strategy());
+app.use(passport.initialize());
 
 // Define a simple health check route. If the server is running
 // we'll respond with a 200 OK.  If not, the server isn't healthy.
