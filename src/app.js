@@ -10,13 +10,8 @@ const passport = require('passport');
 // Create an express app instance we can use to attach middleware and HTTP routes
 const app = express();
 
-// CORS configuration
-const corsOptions = {
-  origin: 'http://localhost:1234', // Allow only this origin
-  optionsSuccessStatus: 200,      // For legacy browsers (IE11) that choke on 204
-};
-// Use CORS middleware with options
-app.use(cors(corsOptions));
+// Use CORS middleware so we can make requests across origins
+app.use(cors());
 
 // Define our routes
 app.use('/', require('./routes'));
@@ -34,15 +29,11 @@ const pino = require('pino-http')({
 // Use gzip/deflate compression middleware
 app.use(compression());
 
-
 // Use pino logging middleware
 app.use(pino);
 
 // Use helmetjs security middleware
 app.use(helmet());
-
-// Use CORS middleware so we can make requests across origins
-app.use(cors());
 
 // Use gzip/deflate compression middleware
 app.use(compression());
