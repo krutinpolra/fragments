@@ -3,6 +3,9 @@
 // We want to gracefully shutdown our server
 const stoppable = require('stoppable');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 // Get our logger instance
 const logger = require('./logger');
 
