@@ -1,5 +1,5 @@
 // src/app.js
-const logger = require('./logger');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,13 +11,9 @@ const { createErrorResponse } = require('./response'); // Import response helper
 // Create an express app instance we can use to attach middleware and HTTP routes
 const app = express();
 
-logger.info('Initializing Express app');
-
 // Use CORS middleware so we can make requests across origins
 app.use(cors());
-logger.info('CORS middleware enabled');
 
-logger.info('Setting up API routes');
 // Define our routes
 app.use('/', require('./routes'));
 
@@ -25,6 +21,7 @@ app.use('/', require('./routes'));
 // TODO: make sure you have updated your name in the `author` section
 //const { author, version } = require('../package.json');
 
+const logger = require('./logger');
 const pino = require('pino-http')({
   // Use our default logger instance, which is already configured
   logger,
@@ -32,20 +29,19 @@ const pino = require('pino-http')({
 
 // Use gzip/deflate compression middleware
 app.use(compression());
-logger.info('Compression middleware enabled');
 
 // Use pino logging middleware
 app.use(pino);
-logger.info('Pino logging middleware enabled');
 
 // Use helmetjs security middleware
 app.use(helmet());
-logger.info('Helmet security middleware enabled');
+
+// Use gzip/deflate compression middleware
+app.use(compression());
 
 // Set up our passport authentication middleware
 passport.use(authenticate.strategy());
 app.use(passport.initialize());
-logger.info('Passport authentication initialized');
 
 // Define a simple health check route. If the server is running
 // we'll respond with a 200 OK.  If not, the server isn't healthy.
@@ -66,7 +62,6 @@ logger.info('Passport authentication initialized');
 
 // Add 404 middleware to handle any requests for resources that can't be found
 app.use((req, res) => {
-  logger.warn(`404 Not Found: ${req.originalUrl}`);
   res.status(404).json(createErrorResponse(404, 'not found'));
 });
 
@@ -81,13 +76,10 @@ app.use((err, req, res, next) => {
   // If this is a server error, log something so we can see what's going on.
   if (status > 499) {
     logger.error({ err }, `Error processing request`);
-  } else {
-    logger.warn({ err }, `Client error on request: ${req.originalUrl}`);
   }
 
   res.status(status).json(createErrorResponse(status, message));
 });
 
-logger.info('Express app successfully initialized');
 // Export our `app` so we can access it in server.js
 module.exports = app;

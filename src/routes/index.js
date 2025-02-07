@@ -1,5 +1,4 @@
 // src/routes/index.js
-const logger = require('../logger');
 
 const express = require('express');
 
@@ -15,12 +14,9 @@ const router = express.Router();
 // Our authentication middleware
 const { authenticate } = require('../auth');
 
-logger.info('Initializing API routes');
-
 // Define a simple health check route. If the server is running
 // we'll respond with a 200 OK.  If not, the server isn't healthy.
 router.get('/', (req, res) => {
-  logger.info('Health check route accessed');
   // Clients shouldn't cache this response (always request it fresh)
   // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching#controlling_caching
   res.setHeader('Cache-Control', 'no-cache');
@@ -41,7 +37,6 @@ router.get('/', (req, res) => {
  * Protect them all with middleware so you have to be authenticated
  * in order to access things.
  */
-logger.info('Protecting API routes with authentication');
 router.use(`/v1`, authenticate(), require('./api'));
 
 module.exports = router;
