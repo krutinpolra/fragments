@@ -1,5 +1,5 @@
 // src/app.js
-
+const logger = require('./logger');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -25,7 +25,6 @@ app.use('/', require('./routes'));
 // TODO: make sure you have updated your name in the `author` section
 //const { author, version } = require('../package.json');
 
-const logger = require('./logger');
 const pino = require('pino-http')({
   // Use our default logger instance, which is already configured
   logger,
@@ -42,9 +41,6 @@ logger.info('Pino logging middleware enabled');
 // Use helmetjs security middleware
 app.use(helmet());
 logger.info('Helmet security middleware enabled');
-
-// Use gzip/deflate compression middleware
-app.use(compression());
 
 // Set up our passport authentication middleware
 passport.use(authenticate.strategy());
