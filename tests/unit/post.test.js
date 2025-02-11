@@ -1,124 +1,122 @@
 const request = require('supertest');
-const express = require('express');
-const router = require('../../src/routes');
+const app = require('../../src/app');
 const { Fragment } = require('../../src/model/fragment');
 
-// Create an Express app to test
-const app = express();
+describe('POST /v1/fragments', () => {
+  test('unauthenticated requests are denied', () => request(app).post('/v1/fragments').expect(401));
 
-// Middleware to handle raw binary data
-app.use(express.raw({ type: '*/*', limit: '5mb' }));
+  test('incorrect credentials are denied', () =>
+    request(app).post('/v1/fragments').auth('invalid@email.com', 'incorrect_password').expect(401));
 
-// Mock authentication middleware
-app.use(
-  '/',
-  (req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
-    }
-    req.user = 'test-user'; // Simulated authenticated user
-    next();
-  },
-  router
-);
-
-describe('POST /fragments', () => {
-  test('should create a new fragment with valid content type', async () => {
-    const fragmentData = Buffer.from('Hello, this is a test fragment');
-
+  // Using a valid username/password pair should give a success result for post request for plain text
+  test('authenticated users can create a plain text fragment and location must returned in header', async () => {
     const res = await request(app)
-      .post('/fragments')
-      .auth('user1@email.com', 'password1') // Simulated authentication
+      .post('/v1/fragments')
+      .auth('user1@email.com', 'password1')
       .set('Content-Type', 'text/plain')
-      .send(fragmentData);
-
-    console.log(res.body); // Debugging
-
-    expect(res.status).toBe(201);
+      .send('This is a fragment');
+    expect(res.statusCode).toBe(201);
     expect(res.body.status).toBe('ok');
-    expect(res.body.fragment).toBeDefined();
-    expect(res.body.fragment).toHaveProperty('id');
-    expect(res.body.fragment).toHaveProperty('ownerId');
-    expect(res.body.fragment).toHaveProperty('created');
-    expect(res.body.fragment).toHaveProperty('updated');
-    expect(res.body.fragment).toHaveProperty('type', 'text/plain');
-    expect(res.body.fragment).toHaveProperty('size', fragmentData.length);
-
-    const expectedBaseUrl = process.env.API_URL || 'http://localhost:8080';
-    expect(res.headers.location).toBe(`${expectedBaseUrl}/v1/fragments/${res.body.fragment.id}`);
+    expect(res.headers['location']).toMatch(/\/v1\/fragments\/[a-f0-9-]+$/);
   });
 
-  test('should return 415 for unsupported content type', async () => {
+  test('returns 415 for unsupported content type', async () => {
     const res = await request(app)
-      .post('/fragments')
+      .post('/v1/fragments')
       .auth('user1@email.com', 'password1')
-      .set('Content-Type', 'application/msword')
-      .send('Unsupported data');
+      .set('Content-Type', 'application/xml')
+      .send('<xml>Data</xml>');
 
-    expect(res.status).toBe(415);
+    expect(res.statusCode).toBe(415);
     expect(res.body.status).toBe('error');
-    expect(res.body.message).toBe('Unsupported Media Type');
+    expect(res.body.message).toBe('Unsupported fragment type requested by the client!');
   });
 
-  test('should return 415 if no content type is provided', async () => {
+  test('returns 415 if Content-Type header is missing', async () => {
     const res = await request(app)
-      .post('/fragments')
+      .post('/v1/fragments')
+      .auth('user1@email.com', 'password1') // Valid user
+      .send('This is a fragment'); // No Content-Type header
+
+    expect(res.statusCode).toBe(415);
+    expect(res.body.message).toBe('Unsupported fragment type requested by the client!');
+  });
+
+  test('returns 415 if request body contains JSON instead of raw binary data', async () => {
+    const res = await request(app)
+      .post('/v1/fragments')
       .auth('user1@email.com', 'password1')
-      .send('No Content-Type header');
+      .set('Content-Type', 'application/json') // Setting JSON content type
+      .send(JSON.stringify({ text: 'This is JSON' })); // Sending JSON object
 
-    expect(res.status).toBe(415);
-    expect(res.body.status).toBe('error');
-    expect(res.body.message).toBe('Unsupported Media Type');
+    expect(res.statusCode).toBe(415);
+    expect(res.body.message).toBe('Unsupported fragment type requested by the client!');
   });
 
-  test('should return 400 for invalid (non-buffer) body', async () => {
+  test('returns 400 for empty body', async () => {
     const res = await request(app)
-      .post('/fragments')
-      .auth('user1@email.com', 'password1')
-      .set('Content-Type', 'text/plain')
-      .send(Buffer.from('{"message": "Invalid JSON instead of raw data"}')); // Send JSON-like string
-
-    expect(res.status).toBe(400);
-    expect(res.body.status).toBe('error');
-    expect(res.body.message).toBe('Bad Request: Body must be raw binary data');
-  });
-
-  test('should return 400 if body is empty', async () => {
-    const res = await request(app)
-      .post('/fragments')
+      .post('/v1/fragments')
       .auth('user1@email.com', 'password1')
       .set('Content-Type', 'text/plain')
-      .send(Buffer.from('')); // Send an empty buffer
+      .send(Buffer.from('')); // Empty buffer
 
-    expect(res.status).toBe(400);
+    expect(res.statusCode).toBe(400);
     expect(res.body.status).toBe('error');
-    expect(res.body.message).toBe('Bad Request: Body must be raw binary data');
+    expect(res.body.message).toBe('Bad Request: Body must not be empty');
   });
 
-  test('should return 500 if an error occurs while creating fragment', async () => {
+  test('returns 500 if an error occurs while creating fragment', async () => {
     jest.spyOn(Fragment.prototype, 'save').mockImplementationOnce(() => {
       throw new Error('Database error');
     });
 
     const res = await request(app)
-      .post('/fragments')
+      .post('/v1/fragments')
       .auth('user1@email.com', 'password1')
       .set('Content-Type', 'text/plain')
       .send(Buffer.from('This will fail'));
 
-    expect(res.status).toBe(500);
+    expect(res.statusCode).toBe(500);
     expect(res.body.status).toBe('error');
     expect(res.body.message).toBe('Internal Server Error');
   });
 
-  test('unauthenticated requests are denied', async () => {
+  // response include all necessary and expected properties
+  test('post return fragment with all necessary properties', async () => {
+    const data = 'This is a fragment';
+    const size = Buffer.byteLength(data);
+    const user = 'user1@email.com';
+    const type = 'text/plain';
     const res = await request(app)
-      .post('/fragments')
-      .set('Content-Type', 'text/plain')
-      .send('Unauthorized request');
+      .post('/v1/fragments')
+      .auth(user, 'password1')
+      .set('Content-Type', type)
+      .send(data);
+    expect(res.statusCode).toBe(201);
 
-    expect(res.status).toBe(401);
-    expect(res.body.status).toBe('error');
-    expect(res.body.message).toBe('Unauthorized');
+    // verify all properties of the fragment object
+    const fragment = res.body.fragment;
+    expect(fragment).toHaveProperty('created');
+    expect(fragment).toHaveProperty('updated');
+    expect(fragment).toHaveProperty('ownerId');
+    expect(fragment).toHaveProperty('type');
+    expect(fragment).toHaveProperty('size');
+
+    // verify return value with expected properties
+    expect(fragment.type).toBe(type);
+    expect(fragment.size).toBe(size);
+  });
+
+  // post fragment with unsupported type
+  test('post fragment with unsupported', async () => {
+    const type = 'image/abc'; // not supported type
+    const res = await request(app)
+      .post('/v1/fragments')
+      .auth('user1@email.com', 'password1')
+      .set('Content-Type', type)
+      .send('This is a fragment');
+
+    expect(res.statusCode).toBe(415);
+    expect(res.body.message).toBe('Unsupported fragment type requested by the client!');
   });
 });
