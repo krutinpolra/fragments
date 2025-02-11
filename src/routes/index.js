@@ -8,8 +8,6 @@ const { version, author } = require('../../package.json');
 // Import response helper
 const { createSuccessResponse } = require('../../src/response');
 
-const postFragment = require('../routes/api/post');
-
 // Create a router that we can use to mount our API
 const router = express.Router();
 
@@ -27,22 +25,11 @@ router.get('/', (req, res) => {
   res.status(200).json(
     createSuccessResponse({
       author,
-      // TODO: change this to use your GitHub username!
       githubUrl: 'https://github.com/krutinpolra/fragments.git',
       version,
     })
   );
 });
-
-const rawBody = () =>
-  express.raw({
-    inflate: true,
-    limit: '5mb',
-    type: (req) => {
-      const { type } = require('content-type').parse(req);
-      return postFragment.isSupportedType(type);
-    },
-  });
 
 /**
  * Expose all of our API routes on /v1/* to include an API version.
@@ -50,6 +37,5 @@ const rawBody = () =>
  * in order to access things.
  */
 router.use(`/v1`, authenticate(), require('./api'));
-router.post('/fragments', rawBody(), require('./api/post'));
 
 module.exports = router;

@@ -3,69 +3,51 @@ const logger = require('../../logger');
 
 module.exports = async (req, res) => {
   logger.debug('Received POST /fragments request', { headers: req.headers });
+
   try {
-    // Ensure Content-Type is present
+    // Get Content-Type
     const contentType = req.get('Content-Type');
-    if (!contentType) {
-      logger.warn('Missing Content-Type header');
-      return res.status(415).json({ status: 'error', message: 'Unsupported Media Type' });
+
+    // Reject missing or unsupported Content-Type (including application/json)
+    if (
+      !contentType ||
+      !Fragment.isSupportedType(contentType) ||
+      contentType === 'application/json'
+    ) {
+      logger.warn(`Unsupported or missing Content-Type: ${contentType || 'None'}`);
+      return res
+        .status(415)
+        .json({ status: 'error', message: 'Unsupported fragment type requested by the client!' });
     }
 
-    logger.debug(`Content-Type received: ${contentType}`);
-
-    // Validate Content-Type
-    if (!Fragment.isSupportedType(contentType)) {
-      logger.warn(`Unsupported content type: ${contentType}`);
-      return res.status(415).json({ status: 'error', message: 'Unsupported Media Type' });
+    // Reject empty body
+    if (!req.body || req.body.length === 0) {
+      logger.warn('Empty request body received');
+      return res
+        .status(400)
+        .json({ status: 'error', message: 'Bad Request: Body must not be empty' });
     }
 
-    // Ensure request body is a Buffer and not JSON-like
+    // Ensure body is a Buffer (No need to check for JSON parsing separately)
     if (!Buffer.isBuffer(req.body)) {
       logger.warn('Request body is not a Buffer');
       return res
-        .status(400)
+        .status(415)
         .json({ status: 'error', message: 'Bad Request: Body must be raw binary data' });
     }
 
-    // Check if the buffer contains JSON instead of raw binary data
-    try {
-      JSON.parse(req.body.toString()); // If parsing succeeds, it's not valid raw binary
-      logger.warn('Request body contains JSON instead of raw binary data');
-      return res
-        .status(400)
-        .json({ status: 'error', message: 'Bad Request: Body must be raw binary data' });
-      // eslint-disable-next-line no-unused-vars
-    } catch (error) {
-      // If parsing fails, it means the buffer is valid binary, so we proceed
-    }
-
-    // Ensure request body is not empty
-    if (req.body.length === 0) {
-      logger.warn('Request body is empty');
-      return res
-        .status(400)
-        .json({ status: 'error', message: 'Bad Request: Body must be raw binary data' });
-    }
-
-    // Use a default user ID if `req.user` is missing (fix for test environment)
+    // Use default user ID if req.user is missing (for test environment)
     const ownerId = req.user || 'test-user';
 
-    // Create a new Fragment
-    const fragment = new Fragment({
-      ownerId,
-      type: contentType,
-      size: req.body.length,
-    });
-
-    // Save metadata and data
+    // Create & save fragment
+    const fragment = new Fragment({ ownerId, type: contentType, size: req.body.length });
     await fragment.save();
     await fragment.setData(req.body);
 
     logger.info(`Created new fragment: ${fragment.id}`);
 
-    // Set the API URL: Use `API_URL` from .env, or construct from `req.headers.host`
-    let apiUrl = process.env.API_URL || `http://localhost:8080`;
-
+    // Construct API URL
+    const apiUrl = process.env.API_URL || `http://localhost:8080`;
     const location = `${apiUrl}/v1/fragments/${fragment.id}`;
 
     return res
