@@ -60,6 +60,7 @@ const getFragmentByID = async (req, res) => {
         content: fragment.isText ? fragmentData.toString() : '[Binary Data]',
       })
     );
+    // eslint-disable-next-line no-unused-vars
   } catch (error) {
     return res
       .status(404)
