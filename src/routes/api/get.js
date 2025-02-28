@@ -3,18 +3,36 @@ const { Fragment } = require('../../model/fragment'); // Import Fragment model
 const logger = require('../../logger'); // Import logger
 
 const getFragments = async (req, res) => {
-  logger.debug(`Get all fragment for user ${req.user}`);
+  logger.debug(`Get all fragments for user ${req.user}`);
   try {
     const userId = req.user; // Get authenticated user ID
-    console.log(`Fetching fragments for user: ${userId}`);
+    const { expand } = req.query; // Get query parameter
+    console.log(`Fetching fragments for user: ${userId}, expand: ${expand}`);
 
     const fragments = await Fragment.byUser(userId, true); // Fetch user's fragments
-    logger.info(`Found ${fragments.length} fragments for user ${userId}`);
 
-    res.status(200).json(createSuccessResponse({ fragments })); // Return fragments
+    if (expand === '1') {
+      // Fetch and include content if expand=1
+      const expandedFragments = await Promise.all(
+        fragments.map(async (fragment) => {
+          const frag = new Fragment(fragment);
+          const content = await frag.getData();
+          return {
+            ...fragment,
+            content: frag.isText ? content.toString() : '[Binary Data]',
+          };
+        })
+      );
+
+      logger.info(`Returning expanded fragments for user ${userId}`);
+      return res.status(200).json(createSuccessResponse({ fragments: expandedFragments }));
+    }
+
+    logger.info(`Returning fragment metadata for user ${userId}`);
+    return res.status(200).json(createSuccessResponse({ fragments }));
   } catch (error) {
     console.error('Error fetching fragments:', error);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
 
