@@ -1,5 +1,6 @@
 const { Fragment } = require('../../model/fragment');
 const logger = require('../../logger');
+const { createSuccessResponse, createErrorResponse } = require('../../response');
 
 module.exports = async (req, res) => {
   logger.debug('Received POST /fragments request', { headers: req.headers });
@@ -9,35 +10,32 @@ module.exports = async (req, res) => {
     const contentType = req.get('Content-Type');
 
     // Reject missing or unsupported Content-Type (including application/json)
-    if (
-      !contentType ||
-      !Fragment.isSupportedType(contentType) ||
-      contentType === 'application/json'
-    ) {
+    if (!contentType || !Fragment.isSupportedType(contentType)) {
       logger.warn(`Unsupported or missing Content-Type: ${contentType || 'None'}`);
       return res
         .status(415)
-        .json({ status: 'error', message: 'Unsupported fragment type requested by the client!' });
+        .json(createErrorResponse(415, 'Unsupported fragment type requested by the client!'));
     }
 
     // Reject empty body
     if (!req.body || req.body.length === 0) {
       logger.warn('Empty request body received');
-      return res
-        .status(400)
-        .json({ status: 'error', message: 'Bad Request: Body must not be empty' });
+      req.body = Buffer.alloc(0);
     }
 
     // Ensure body is a Buffer (No need to check for JSON parsing separately)
     if (!Buffer.isBuffer(req.body)) {
       logger.warn('Request body is not a Buffer');
       return res
-        .status(415)
-        .json({ status: 'error', message: 'Bad Request: Body must be raw binary data' });
+        .status(400)
+        .json(createErrorResponse(400, 'Bad Request: Body must be raw binary data'));
     }
 
-    // Use default user ID if req.user is missing (for test environment)
-    const ownerId = req.user || 'test-user';
+    if (!req.user) {
+      logger.warn('Authentication failed: No user found in request');
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
+    }
+    const ownerId = req.user; // Use hashed email from auth middleware
 
     // Create & save fragment
     const fragment = new Fragment({ ownerId, type: contentType, size: req.body.length });
@@ -50,22 +48,9 @@ module.exports = async (req, res) => {
     const apiUrl = process.env.API_URL || `http://localhost:8080`;
     const location = `${apiUrl}/v1/fragments/${fragment.id}`;
 
-    return res
-      .status(201)
-      .set('Location', location)
-      .json({
-        status: 'ok',
-        fragment: {
-          id: fragment.id,
-          ownerId: fragment.ownerId,
-          created: fragment.created,
-          updated: fragment.updated,
-          type: fragment.type,
-          size: fragment.size,
-        },
-      });
+    return res.status(201).set('Location', location).json(createSuccessResponse({ fragment }));
   } catch (error) {
     logger.error(`Error creating fragment: ${error.message}`);
-    return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal Server Error'));
   }
 };
