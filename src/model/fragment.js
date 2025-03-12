@@ -3,6 +3,9 @@ const { randomUUID } = require('crypto');
 // Use content-type module to create/parse Content-Type headers
 const contentType = require('content-type');
 const logger = require('../logger'); // Import logger
+const markdownit = require('markdown-it');
+
+const md = markdownit();
 
 // Functions for working with fragment metadata/data using our DB
 const {
@@ -53,12 +56,12 @@ class Fragment {
 
   static async byUser(ownerId, expand = false) {
     const fragments = await listFragments(ownerId, expand);
-    return expand ? fragments.map((f) => new Fragment(f)) : fragments;
+    return fragments;
   }
 
   /**
    * Gets a fragment for the user by the given id.
-   * **✅ Moved content conversion logic here**
+   * ** Moved content conversion logic here**
    * @param {string} ownerId user's hashed email
    * @param {string} id fragment's id
    * @returns Promise<Fragment>
@@ -70,20 +73,10 @@ class Fragment {
     }
 
     const fragment = new Fragment(fragmentMetadata);
-    const fragmentData = await fragment.getData();
-
-    // ✅ Convert content based on fragment type inside `byId()`
-    fragment.content =
-      fragment.type === 'application/json'
-        ? JSON.parse(fragmentData.toString()) // Convert JSON to object
-        : fragment.isText
-          ? fragmentData.toString() // Convert text to string
-          : fragmentData; // Keep binary as is (Buffer)
-
     return fragment;
   }
 
-  async delete(ownerId, id) {
+  static async delete(ownerId, id) {
     await deleteFragment(ownerId, id);
     logger.info(`Deleted fragment with id ${id} for user ${ownerId}`);
   }
@@ -116,8 +109,16 @@ class Fragment {
     return this.mimeType.startsWith('text/');
   }
 
+  /**
+   * Returns the formats into which this fragment type can be converted
+   * @returns {Array<string>} list of supported mime types
+   */
   get formats() {
-    return [this.mimeType]; // For now, fragments stay in their original format
+    const validConversions = {
+      'text/plain': ['text/plain'],
+      'text/markdown': ['text/markdown', 'text/html', 'text/plain'],
+    };
+    return validConversions[this.mimeType] || false;
   }
 
   static isSupportedType(value) {
@@ -128,6 +129,28 @@ class Fragment {
     } catch (error) {
       throw new error(`Invalid Content-Type: ${value}`);
     }
+  }
+
+  async getConvertedInto(type) {
+    const fragmentData = await this.getData();
+    const fragmentType = this.type;
+
+    const conversions = {
+      'text/plain': {
+        '.txt': () => fragmentData,
+      },
+      'text/markdown': {
+        '.md': () => fragmentData,
+        '.html': () => md.render(fragmentData.toString('utf8')),
+        '.txt': () => fragmentData.toString('utf8'),
+      },
+    };
+
+    if (conversions[fragmentType] && conversions[fragmentType][type]) {
+      return await conversions[fragmentType][type]();
+    }
+
+    throw new Error(`Unsupported conversion from ${fragmentType} to ${type}`);
   }
 }
 

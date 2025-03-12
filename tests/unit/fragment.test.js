@@ -6,9 +6,6 @@ const wait = async (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms)
 
 const validTypes = [
   `text/plain`,
-  /*
-   Currently, only text/plain is supported. Others will be added later.
-
   `text/markdown`,
   `text/html`,
   `application/json`,
@@ -16,7 +13,6 @@ const validTypes = [
   `image/jpeg`,
   `image/webp`,
   `image/gif`,
-  */
 ];
 
 describe('Fragment class', () => {
@@ -168,11 +164,50 @@ describe('Fragment class', () => {
       });
       expect(fragment.formats).toEqual(['text/plain']);
     });
+
+    test('formats() returns correct available conversions', () => {
+      const markdownFragment = new Fragment({ ownerId: '1234', type: 'text/markdown', size: 0 });
+      expect(markdownFragment.formats).toEqual(['text/markdown', 'text/html', 'text/plain']);
+
+      const textFragment = new Fragment({ ownerId: '1234', type: 'text/plain', size: 0 });
+      expect(textFragment.formats).toEqual(['text/plain']);
+    });
+  });
+
+  describe('conversion', () => {
+    test('getConvertedInto() throws an error when conversion is not supported', async () => {
+      const fragment = new Fragment({ ownerId: '1234', type: 'text/plain', size: 0 });
+      await fragment.save();
+      await expect(fragment.getConvertedInto('.xml')).rejects.toThrow(
+        `Unsupported conversion from text/plain to .xml`
+      );
+    });
+
+    test('getConvertedInto() correctly converts markdown to HTML and plain text', async () => {
+      const data = Buffer.from('# Hello Markdown');
+      const fragment = new Fragment({ ownerId: '1234', type: 'text/markdown', size: data.length });
+      await fragment.save();
+      await fragment.setData(data);
+
+      const htmlConversion = await fragment.getConvertedInto('.html');
+      const textConversion = await fragment.getConvertedInto('.txt');
+
+      expect(htmlConversion).toContain('<h1>Hello Markdown</h1>'); // Ensure markdown renders as HTML
+      expect(textConversion).toEqual(data.toString('utf8')); // Ensure markdown converts to plain text
+    });
   });
 
   describe('save(), getData(), setData(), byId(), byUser(), delete()', () => {
     test('byUser() returns an empty array if there are no fragments for this user', async () => {
-      expect(await Fragment.byUser('1234')).toEqual([]);
+      const ownerId = '123';
+
+      // Ensure all fragments for the user are deleted before testing
+      const existingFragments = await Fragment.byUser(ownerId, true);
+      for (const frag of existingFragments) {
+        await Fragment.delete(ownerId, frag.id);
+      }
+
+      expect(await Fragment.byUser(ownerId)).toEqual([]);
     });
 
     test('a fragment can be created and save() stores a fragment for the user', async () => {
