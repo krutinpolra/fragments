@@ -25,6 +25,7 @@ module.exports = (strategyName) => {
 
       // Not authorized, return a 401
       if (!email) {
+        logger.warn('No email found in token');
         return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
       }
 

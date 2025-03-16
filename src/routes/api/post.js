@@ -9,7 +9,7 @@ module.exports = async (req, res) => {
     // Get Content-Type
     const contentType = req.get('Content-Type');
 
-    // Reject missing or unsupported Content-Type (including application/json)
+    // Reject missing or unsupported Content-Type
     if (!contentType || !Fragment.isSupportedType(contentType)) {
       logger.warn(`Unsupported or missing Content-Type: ${contentType || 'None'}`);
       return res
@@ -17,10 +17,10 @@ module.exports = async (req, res) => {
         .json(createErrorResponse(415, 'Unsupported fragment type requested by the client!'));
     }
 
-    // Reject empty body
+    // Reject empty body directly (no need to reassign it)
     if (!req.body || req.body.length === 0) {
       logger.warn('Empty request body received');
-      req.body = Buffer.alloc(0);
+      return res.status(400).json(createErrorResponse(400, 'Bad Request: Body must not be empty'));
     }
 
     // Ensure body is a Buffer (No need to check for JSON parsing separately)
@@ -35,7 +35,8 @@ module.exports = async (req, res) => {
       logger.warn('Authentication failed: No user found in request');
       return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
     }
-    const ownerId = req.user; // Use hashed email from auth middleware
+
+    const ownerId = req.user;
 
     // Create & save fragment
     const fragment = new Fragment({ ownerId, type: contentType, size: req.body.length });

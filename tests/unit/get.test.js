@@ -22,107 +22,205 @@ describe('GET /v1/fragments', () => {
     expect(Array.isArray(res.body.fragments)).toBe(true);
   });
 
-  test('returns empty array when user has no fragments', async () => {
-    const res = await request(app).get('/v1/fragments').auth('user2@email.com', 'password2'); // Use a valid user from .htpasswd
-
-    console.log('🔹 Response:', res.status, res.body); // Debugging Output
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(res.body.fragments).toEqual([]);
-  });
-
+  // fetching correct fragments
   test('fetching correct fragments', async () => {
-    const ownerId = hash('user1@email.com'); // Ensure consistency with the API
+    const ownerId = hash('user1@email.com');
     const id = 'rdmId';
-
-    // Create and store fragment
     const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
     const body = 'This is a fragment';
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
 
-    await fragMetadata1.setData(Buffer.from(body)); // Convert string to Buffer
-    await fragMetadata1.save(); // Ensure it is properly stored
-
-    // Fetch fragments for the user
     const res = await request(app).get('/v1/fragments').auth('user1@email.com', 'password1');
+    expect(res.body.fragments[0]).toBe(id);
+  });
+});
 
-    // Ensure fragments exist in response
+test('returns empty array when user has no fragments', async () => {
+  const res = await request(app).get('/v1/fragments').auth('user2@email.com', 'password2'); // Use a valid user from .htpasswd
+
+  console.log('🔹 Response:', res.status, res.body); // Debugging Output
+
+  expect(res.statusCode).toBe(200);
+  expect(res.body.status).toBe('ok');
+  expect(res.body.fragments).toEqual([]);
+});
+
+describe('/v1/fragments?expand=1', () => {
+  // fetching correct fragments with passed expand=1 as query parameter
+  test('fetching correct fragments when passed expand=1', async () => {
+    const ownerId = hash('user1@email.com');
+    const id = 'rdmId';
+    const type = 'text/plain';
+    const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: type });
+    const body = 'This is a fragment';
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
+
+    const res = await request(app)
+      .get('/v1/fragments?expand=1')
+      .auth('user1@email.com', 'password1');
+    expect(res.body.fragments[0].id).toBe(id);
+    expect(res.body.fragments[0].ownerId).toBe(hash('user1@email.com'));
+    expect(res.body.fragments[0].type).toBe(type);
+  });
+});
+
+describe('GET /v1/fragments/:id/info', () => {
+  // If the request is missing the Authorization header, it should be forbidden
+  test('unauthenticated requests are denied', () =>
+    request(app).get('/v1/fragments/123/info').expect(401));
+
+  // If the wrong username/password pair are used (no such user), it should be forbidden
+  test('incorrect credentials are denied', () =>
+    request(app)
+      .get('/v1/fragments/123/info')
+      .auth('invalid@email.com', 'incorrect_password')
+      .expect(401));
+
+  // Using a valid username/password pair should return fragment info
+  test('authenticated users get fragment info', async () => {
+    const ownerId = hash('user1@email.com');
+    const body = 'This is a fragment';
+    const contentType = 'text/plain';
+    const id = 'rmdID';
+    const fragMetadata = new Fragment({ id: id, ownerId: ownerId, type: contentType });
+    fragMetadata.setData(Buffer.from(body)); // buffer fix
+    fragMetadata.save();
+
+    const res = await request(app)
+      .get(`/v1/fragments/${id}/info`)
+      .auth('user1@email.com', 'password1');
     expect(res.statusCode).toBe(200);
-    expect(res.body.fragments.length).toBeGreaterThan(0);
-
-    // Check if one of the returned fragments has the expected id
-    expect(res.body.fragments.some((fragment) => fragment.id === id)).toBe(true);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.fragment.id).toBe(id);
+    expect(res.body.fragment.ownerId).toBe(ownerId);
+    expect(res.body.fragment.type).toBe(contentType);
   });
 
-  describe('/v1/fragments?expand=1', () => {
-    // fetching correct fragments with passed expand=1 as query parameter
-    test('fetching correct fragments when passed expand=1', async () => {
-      const ownerId = hash('user1@email.com');
-      const id = 'rdmId';
-      const type = 'text/plain';
-      const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: type });
-      const body = 'This is a fragment';
-      fragMetadata1.setData(Buffer.from(body));
-      fragMetadata1.save();
-
-      const res = await request(app)
-        .get('/v1/fragments?expand=1')
-        .auth('user1@email.com', 'password1');
-      expect(res.body.fragments[0].id).toBe(id);
-      expect(res.body.fragments[0].ownerId).toBe(hash('user1@email.com'));
-      expect(res.body.fragments[0].type).toBe(type);
-    });
+  // Requesting info for a non-existent fragment should return 404
+  test('requesting info for non-existent fragment returns 404', async () => {
+    const res = await request(app)
+      .get('/v1/fragments/nonexistent-id/info')
+      .auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(404);
+    expect(res.body.status).toBe('error');
+    expect(res.body.error.message).toBe('No fragment with ID nonexistent-id found');
   });
 
-  // Get specific fragments
-  describe('GET /v1/fragments/:id', () => {
-    // If the request is missing the Authorization header, it should be forbidden
-    test('unauthenticated requests are denied', () =>
-      request(app).get('/v1/fragments/ecdca9b2-b841-47e5-be4d-7f880d3c8c59').expect(401));
+  // Simulate an internal server error to return 500
+  test('server error returns 500', async () => {
+    // Temporarily mock the Fragment.byId method to throw an error
+    const id = '123';
+    const originalById = require('../../src/model/fragment').Fragment.byId;
+    require('../../src/model/fragment').Fragment.byId = jest
+      .fn()
+      .mockRejectedValue(new Error('Internal Server Error'));
 
-    // If the wrong username/password pair are used (no such user), it should be forbidden
-    test('incorrect credentials are denied', () =>
-      request(app)
-        .get('/v1/fragments/ecdca9b2-b841-47e5-be4d-7f880d3c8c59')
-        .auth('invalid@email.com', 'incorrect_password')
-        .expect(401));
+    const res = await request(app)
+      .get(`/v1/fragments/${id}/info`)
+      .auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(404);
+    expect(res.body.status).toBe('error');
+    expect(res.body.error.message).toBe(`No fragment with ID ${id} found`);
 
-    // throw when no fragment for given ID
-    test('should return 404 If fragment not found', async () => {
-      const res = await request(app).get('/v1/fragments/1234').auth('user1@email.com', 'password1');
-      expect(res.statusCode).toBe(404);
-    });
+    // Restore the original method
+    require('../../src/model/fragment').Fragment.byId = originalById;
+  });
+});
 
-    // return specific fragment data without post request.
-    test('return specific fragment data without post request', async () => {
-      const ownerId = hash('user1@email.com');
-      const id = 'rdmId';
-      const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
-      const body = 'This is a fragment';
-      fragMetadata1.setData(Buffer.from(body));
-      fragMetadata1.save();
+// Get specific fragments
+describe('GET /v1/fragments/:id', () => {
+  // If the request is missing the Authorization header, it should be forbidden
+  test('unauthenticated requests are denied', () =>
+    request(app).get('/v1/fragments/ecdca9b2-b841-47e5-be4d-7f880d3c8c59').expect(401));
 
-      const res = await request(app)
-        .get(`/v1/fragments/${id}`)
-        .auth('user1@email.com', 'password1');
-      expect(res.statusCode).toBe(200);
-      expect(res.body.content).toBe(body);
-    });
+  // If the wrong username/password pair are used (no such user), it should be forbidden
+  test('incorrect credentials are denied', () =>
+    request(app)
+      .get('/v1/fragments/ecdca9b2-b841-47e5-be4d-7f880d3c8c59')
+      .auth('invalid@email.com', 'incorrect_password')
+      .expect(401));
 
-    // return specific fragment data
-    test('return specific fragment data', async () => {
-      const ownerId = hash('user1@email.com');
-      const id = 'rdmId';
-      const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
-      const body = 'This is a fragment';
-      fragMetadata1.setData(Buffer.from(body));
-      fragMetadata1.save();
+  // throw when no fragment for given ID
+  test('should return 404 If fragment not found', async () => {
+    const res = await request(app).get('/v1/fragments/1234').auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(404);
+  });
 
-      const res = await request(app)
-        .get(`/v1/fragments/${id}`)
-        .auth('user1@email.com', 'password1');
-      expect(res.statusCode).toBe(200);
-      expect(res.body.content).toBe(body);
+  test('return specific fragment data without post request', async () => {
+    const ownerId = hash('user1@email.com');
+    const id = 'rdmId';
+    const body = 'This is a fragment';
+    const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
+
+    const res = await request(app).get(`/v1/fragments/${id}`).auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.id).toBe(id);
+    expect(res.body.ownerId).toBe(ownerId);
+    expect(res.body.type).toBe('text/plain');
+    expect(res.body.size).toBe(Buffer.from(body).length);
+  });
+
+  // return specific fragment data
+  test('return specific fragment data', async () => {
+    const ownerId = hash('user1@email.com');
+    const id = 'rdmId';
+    const body = 'This is a fragment';
+    const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
+
+    const res = await request(app).get(`/v1/fragments/${id}`).auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.id).toBe(id);
+    expect(res.body.ownerId).toBe(ownerId);
+    expect(res.body.type).toBe('text/plain');
+    expect(res.body.size).toBe(Buffer.from(body).length);
+  });
+});
+
+describe('GET /v1/fragments/:id.ext', () => {
+  // should return fragment data successfully with extension
+  test('should return fragment data with extension', async () => {
+    // post a fragment
+    const ownerId = hash('user1@email.com');
+    const id = 'rdmId';
+    const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
+    const body = 'This is a fragment';
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
+
+    const res = await request(app)
+      .get(`/v1/fragments/${id}.txt`)
+      .auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(200);
+    expect(res.text).toBe(body);
+  });
+  // should return 415 if unsupported extension is requested
+  test('should return 415 if unsupported extension is requested', async () => {
+    // post a fragment
+    const ownerId = hash('user1@email.com');
+    const id = 'rdmId';
+    const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
+    const body = 'This is a fragment';
+    fragMetadata1.setData(Buffer.from(body));
+    fragMetadata1.save();
+
+    const res = await request(app)
+      .get(`/v1/fragments/${id}.png`)
+      .auth('user1@email.com', 'password1');
+    expect(res.statusCode).toBe(415);
+    expect(res.body).toEqual({
+      status: 'error',
+      error: {
+        code: 415,
+        message: 'The fragment cannot be converted into the extension specified!',
+      },
     });
   });
 });

@@ -8,7 +8,7 @@ const express = require('express');
 const { authenticate } = require('../../auth');
 const { Fragment } = require('../../model/fragment');
 const contentType = require('content-type');
-const { getFragments, getFragmentByID } = require('./get');
+const { getFragments, getFragmentByID, getFragmentInfo } = require('./get');
 // Create a router on which to mount our API endpoints
 const router = express.Router();
 
@@ -32,6 +32,8 @@ router.use(authenticate());
 router.get('/fragments', getFragments);
 // Get /v1/fragments/:id
 router.get('/fragments/:id', getFragmentByID);
+// Get /v1/fragments/:id/info
+router.get('/fragments/:id/info', getFragmentInfo);
 // Other routes (POST, DELETE, etc.) will go here later...
 
 // Post /v1/fragment
