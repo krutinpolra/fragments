@@ -12,11 +12,11 @@ const getFragments = async (req, res) => {
     const fragments = await Fragment.byUser(userId, true); // Fetch user's fragments
 
     if (expand === '1') {
-      // ✅ Return full metadata when expand=1
+      // Return full metadata when expand=1
       return res.status(200).json(createSuccessResponse({ fragments }));
     }
 
-    // ✅ Return only fragment IDs if expand is NOT provided
+    //  Return only fragment IDs if expand is NOT provided
     const fragmentIds = fragments.map((frag) => frag.id);
     return res.status(200).json(createSuccessResponse({ fragments: fragmentIds }));
   } catch (error) {
@@ -63,7 +63,7 @@ const getFragmentByID = async (req, res) => {
     const fragment = new Fragment(fragmentMetadata);
     const fragmentData = await fragment.getData();
 
-    // ✅ If an extension is provided, try converting the fragment
+    // If an extension is provided, try converting the fragment
     if (extension) {
       if (!mimeType[extension]) {
         logger.warn(`Unsupported conversion extension: ${extension}`);
@@ -88,14 +88,14 @@ const getFragmentByID = async (req, res) => {
       return;
     }
 
-    // ✅ If it's binary data, return raw binary content
+    // If it's binary data, return raw binary content
     if (!fragment.isText) {
       logger.info(`Returning raw binary data for fragment ${fragmentId}`);
       res.set('Content-Type', fragment.mimeType);
       return res.status(200).send(fragmentData);
     }
 
-    // ✅ Otherwise, return the fragment as JSON with content
+    // Otherwise, return the fragment as JSON with content
     res.status(200).json(
       createSuccessResponse({
         id: fragment.id,
@@ -122,7 +122,7 @@ const getFragmentInfo = async (req, res) => {
     const fragmentMetadata = await Fragment.byId(ownerId, id);
     const fragment = new Fragment(fragmentMetadata);
 
-    // ✅ Include fragment content
+    // Include fragment content
     return res.status(200).json(
       createSuccessResponse({
         fragment: {
