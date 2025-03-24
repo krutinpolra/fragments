@@ -153,34 +153,27 @@ describe('GET /v1/fragments/:id', () => {
     const id = 'rdmId';
     const body = 'This is a fragment';
     const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
-    fragMetadata1.setData(Buffer.from(body));
-    fragMetadata1.save();
+    await fragMetadata1.setData(Buffer.from(body));
+    await fragMetadata1.save();
 
     const res = await request(app).get(`/v1/fragments/${id}`).auth('user1@email.com', 'password1');
     expect(res.statusCode).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(res.body.id).toBe(id);
-    expect(res.body.ownerId).toBe(ownerId);
-    expect(res.body.type).toBe('text/plain');
-    expect(res.body.size).toBe(Buffer.from(body).length);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.text).toBe(body);
   });
 
-  // return specific fragment data
   test('return specific fragment data', async () => {
     const ownerId = hash('user1@email.com');
     const id = 'rdmId';
     const body = 'This is a fragment';
     const fragMetadata1 = new Fragment({ id: id, ownerId: ownerId, type: 'text/plain' });
-    fragMetadata1.setData(Buffer.from(body));
-    fragMetadata1.save();
+    await fragMetadata1.setData(Buffer.from(body));
+    await fragMetadata1.save();
 
     const res = await request(app).get(`/v1/fragments/${id}`).auth('user1@email.com', 'password1');
     expect(res.statusCode).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(res.body.id).toBe(id);
-    expect(res.body.ownerId).toBe(ownerId);
-    expect(res.body.type).toBe('text/plain');
-    expect(res.body.size).toBe(Buffer.from(body).length);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.text).toBe(body);
   });
 });
 

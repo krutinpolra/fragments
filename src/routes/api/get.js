@@ -58,20 +58,16 @@ const getFragmentByID = async (req, res) => {
 
   try {
     const fragmentMetadata = await Fragment.byId(ownerId, fragmentId);
-    logger.debug({ fragmentMetadata }, 'Found fragment metadata');
-
     const fragment = new Fragment(fragmentMetadata);
     const fragmentData = await fragment.getData();
 
     // If an extension is provided, try converting the fragment
     if (extension) {
       if (!mimeType[extension]) {
-        logger.warn(`Unsupported conversion extension: ${extension}`);
         return res.status(415).json(createErrorResponse(415, 'Unsupported conversion extension'));
       }
 
       if (!fragment.formats.includes(mimeType[extension])) {
-        logger.warn(`Cannot convert fragment to ${extension}`);
         return res
           .status(415)
           .json(
@@ -82,33 +78,19 @@ const getFragmentByID = async (req, res) => {
           );
       }
 
-      // Convert the fragment into the requested format
       const convertedData = await fragment.getConvertedInto(extension);
-      res.status(200).type(mimeType[extension]).send(convertedData);
-      return;
+      return res.status(200).type(mimeType[extension]).send(convertedData);
     }
 
-    // If it's binary data, return raw binary content
-    if (!fragment.isText) {
-      logger.info(`Returning raw binary data for fragment ${fragmentId}`);
-      res.set('Content-Type', fragment.mimeType);
-      return res.status(200).send(fragmentData);
-    }
-
-    // Otherwise, return the fragment as JSON with content
-    res.status(200).json(
-      createSuccessResponse({
-        id: fragment.id,
-        ownerId: fragment.ownerId,
-        created: fragment.created,
-        updated: fragment.updated,
-        type: fragment.type,
-        size: fragment.size,
-      })
-    );
+    // Always return raw fragment content, no metadata here
+    logger.info(`Returning raw content for fragment ${fragmentId}`);
+    res.set('Content-Type', fragment.mimeType);
+    return res.status(200).send(fragmentData);
   } catch (error) {
     logger.error(`Fragment with ID ${fragmentId} not found. Error: ${error}`);
-    res.status(404).json(createErrorResponse(404, `No fragment with ID ${fragmentId} found`));
+    return res
+      .status(404)
+      .json(createErrorResponse(404, `No fragment with ID ${fragmentId} found`));
   }
 };
 

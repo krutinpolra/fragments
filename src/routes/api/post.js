@@ -39,7 +39,8 @@ module.exports = async (req, res) => {
     const ownerId = req.user;
 
     // Create & save fragment
-    const fragment = new Fragment({ ownerId, type: contentType, size: req.body.length });
+    const cleanType = contentType.split(';')[0].trim();
+    const fragment = new Fragment({ ownerId, type: cleanType, size: req.body.length });
     await fragment.save();
     await fragment.setData(req.body);
 
