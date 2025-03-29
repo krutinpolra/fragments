@@ -27,7 +27,7 @@ LABEL description="Fragments node.js microservice"
 
 #define environment variables using env instruction 
 # We default to use port 8080 in our service
-ENV PORT=80 \
+ENV PORT=8080 \
   NPM_CONFIG_LOGLEVEL=warn \
   NPM_CONFIG_COLOR=false \
   NODE_ENV=production
