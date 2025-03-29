@@ -5,26 +5,30 @@ const logger = require('../../logger'); // Import logger
 const getFragments = async (req, res) => {
   logger.debug(`Get all fragments for user ${req.user}`);
   try {
-    const userId = req.user; // Get authenticated user ID
-    const { expand } = req.query; // Get query parameter
+    const userId = req.user;
+    const { expand } = req.query;
+    const includeMetadata = expand === '1';
+
     logger.info(`Fetching fragments for user: ${userId}, expand: ${expand}`);
 
-    const fragments = await Fragment.byUser(userId, true); // Fetch user's fragments
+    const fragments = await Fragment.byUser(userId, includeMetadata);
 
-    if (expand === '1') {
-      // Return full metadata when expand=1
+    if (includeMetadata) {
+      logger.info(`Returning full fragment metadata.`);
       return res.status(200).json(createSuccessResponse({ fragments }));
     }
+    logger.debug(`Raw fragments from byUser():`, fragments);
 
-    //  Return only fragment IDs if expand is NOT provided
-    const fragmentIds = fragments.map((frag) => frag.id);
+    const fragmentIds = fragments.map((frag) =>
+      typeof frag === 'object' && frag !== null ? frag.id : frag
+    );
+    logger.info(`Returning only fragment IDs.: ${fragmentIds}`);
     return res.status(200).json(createSuccessResponse({ fragments: fragmentIds }));
   } catch (error) {
     logger.error('Error fetching fragments:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal Server Error'));
   }
 };
-
 const splitIDExtension = (id) => {
   const arr = id.split('.');
   const extension = arr[1] ? '.' + arr[1] : null;
@@ -98,13 +102,15 @@ const getFragmentInfo = async (req, res) => {
   const { id } = req.params;
   logger.debug(`Fetching full fragment info for ID: ${id}`);
 
-  const ownerId = req.user;
+  // Fix: Ensure ownerId is a string (hashed email), not a user object
+  const ownerId = typeof req.user === 'string' ? req.user : req.user?.sub;
+  logger.debug(`Resolved ownerId for /info: ${ownerId}`);
 
   try {
     const fragmentMetadata = await Fragment.byId(ownerId, id);
     const fragment = new Fragment(fragmentMetadata);
 
-    // Include fragment content
+    // Return fragment metadata
     return res.status(200).json(
       createSuccessResponse({
         fragment: {

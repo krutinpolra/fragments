@@ -2,6 +2,7 @@
 
 services:
   # Fragments microservice API server
+  restart: always
   fragments:
     # Use a proper init process (tini)
     init: true
