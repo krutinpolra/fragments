@@ -27,7 +27,7 @@ LABEL description="Fragments node.js microservice"
 
 #define environment variables using env instruction 
 # We default to use port 8080 in our service
-ENV PORT=8080 \
+ENV PORT=80 \
   NPM_CONFIG_LOGLEVEL=warn \
   NPM_CONFIG_COLOR=false \
   NODE_ENV=production
@@ -56,7 +56,7 @@ RUN apk add --no-cache curl=8.12.1-r0
 # fix the warning given by Halolint "warning: Use arguments JSON notation for CMD and ENTRYPOINT arguments"
 CMD ["node", "src/index.js"]
 
-# We run our service on port 8080
+# We run our service on port 80
 EXPOSE ${PORT}
 
 # Add a healthcheck layer (Querying healthcheck route '/')
