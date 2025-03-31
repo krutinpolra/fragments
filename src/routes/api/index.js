@@ -9,6 +9,7 @@ const { authenticate } = require('../../auth');
 const { Fragment } = require('../../model/fragment');
 const contentType = require('content-type');
 const { getFragments, getFragmentByID, getFragmentInfo } = require('./get');
+const { deleteFragmentById } = require('./delete');
 // Create a router on which to mount our API endpoints
 const router = express.Router();
 
@@ -34,8 +35,11 @@ router.get('/fragments', getFragments);
 router.get('/fragments/:id', getFragmentByID);
 // Get /v1/fragments/:id/info
 router.get('/fragments/:id/info', getFragmentInfo);
-// Other routes (POST, DELETE, etc.) will go here later...
+// Other routes (POST, DELETE, etc.) will go here later...')
 
 // Post /v1/fragment
 router.post('/fragments', rawBody(), require('./post'));
+
+//Delete /v1/fragments/:id
+router.delete('/fragments/:id', deleteFragmentById);
 module.exports = router;
