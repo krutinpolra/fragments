@@ -40,18 +40,6 @@
         {
           "name": "AWS_S3_BUCKET_NAME",
           "value": "${{ secrets.AWS_S3_BUCKET_NAME }}"
-        },
-        {
-          "name": "AWS_ACCESS_KEY_ID",
-          "value": "${{ secrets.AWS_ACCESS_KEY_ID }}"
-        },
-        {
-          "name": "AWS_SECRET_ACCESS_KEY",
-          "value": "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-        },
-        {
-          "name": "AWS_SESSION_TOKEN",
-          "value": "${{ secrets.AWS_SESSION_TOKEN }}"
         }
       ],
       "environmentFiles": [],
