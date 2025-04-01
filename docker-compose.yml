@@ -2,8 +2,8 @@
 
 services:
   # Fragments microservice API server
-  restart: always
   fragments:
+    restart: always
     # Use a proper init process (tini)
     init: true
     # Build the Docker Image using the Dockerfile
