@@ -98,6 +98,7 @@ jobs:
             AWS_COGNITO_CLIENT_ID=${{ secrets.AWS_COGNITO_CLIENT_ID }}
             AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
             USE_AWS_STORAGE=true
+            AWS_DYNAMODB_TABLE_NAME=${{ secrets.AWS_DYNAMODB_TABLE_NAME }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
