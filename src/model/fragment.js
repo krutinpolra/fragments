@@ -4,6 +4,9 @@ const { randomUUID } = require('crypto');
 const contentType = require('content-type');
 const logger = require('../logger'); // Import logger
 const markdownit = require('markdown-it');
+const csv = require('csvtojson'); // Import csvtojson module
+const yaml = require('js-yaml'); // Import js-yaml module
+const sharp = require('sharp'); // Import sharp module
 
 const md = markdownit();
 
@@ -117,6 +120,15 @@ class Fragment {
     const validConversions = {
       'text/plain': ['text/plain'],
       'text/markdown': ['text/markdown', 'text/html', 'text/plain'],
+      'text/html': ['text/html', 'text/plain'],
+      'text/csv': ['text/csv', 'text/plain', 'application/json'],
+      'application/json': ['application/json', 'application/yaml', 'text/plain'],
+      'application/yaml': ['application/yaml', 'text/plain'],
+      'image/png': ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
+      'image/jpeg': ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
+      'image/webp': ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
+      'image/avif': ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
+      'image/gif': ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'],
     };
     return validConversions[this.mimeType] || false;
   }
@@ -144,10 +156,70 @@ class Fragment {
         '.html': () => md.render(fragmentData.toString('utf8')),
         '.txt': () => fragmentData.toString('utf8'),
       },
+      'text/html': {
+        '.html': () => fragmentData,
+        '.txt': () => fragmentData.toString('utf8'),
+      },
+      'text/csv': {
+        '.csv': () => fragmentData,
+        '.txt': () => fragmentData.toString('utf8'),
+        '.json': () =>
+          csv()
+            .fromString(fragmentData.toString('utf8'))
+            .then((jsonObj) => {
+              return jsonObj;
+            }),
+      },
+      'application/json': {
+        '.json': () => fragmentData,
+        '.yaml': () => yaml.dump(JSON.parse(fragmentData.toString('utf8'))),
+        '.yml': () => yaml.dump(JSON.parse(fragmentData.toString('utf8'))),
+        '.txt': () => fragmentData.toString('utf8'),
+      },
+      'application/yaml': {
+        '.yaml': () => fragmentData,
+        '.txt': () => fragmentData.toString('utf8'),
+      },
+      'image/png': {
+        '.png': () => fragmentData,
+        '.jpg': async () => await sharp(fragmentData).jpeg().toBuffer(),
+        '.webp': async () => await sharp(fragmentData).webp().toBuffer(),
+        '.gif': async () => await sharp(fragmentData).gif().toBuffer(),
+        '.avif': async () => await sharp(fragmentData).avif().toBuffer(),
+      },
+      'image/jpeg': {
+        '.png': async () => await sharp(fragmentData).png().toBuffer(),
+        '.jpg': () => fragmentData,
+        '.webp': async () => await sharp(fragmentData).webp().toBuffer(),
+        '.gif': async () => await sharp(fragmentData).gif().toBuffer(),
+        '.avif': async () => await sharp(fragmentData).avif().toBuffer(),
+      },
+      'image/webp': {
+        '.webp': () => fragmentData,
+        '.png': async () => await sharp(fragmentData).png().toBuffer(),
+        '.jpg': async () => await sharp(fragmentData).jpeg().toBuffer(),
+        '.gif': async () => await sharp(fragmentData).gif().toBuffer(),
+        '.avif': async () => await sharp(fragmentData).avif().toBuffer(),
+      },
+      'image/avif': {
+        '.avif': () => fragmentData,
+        '.png': async () => await sharp(fragmentData).png().toBuffer(),
+        '.jpg': async () => await sharp(fragmentData).jpeg().toBuffer(),
+        '.webp': async () => await sharp(fragmentData).webp().toBuffer(),
+        '.gif': async () => await sharp(fragmentData).gif().toBuffer(),
+      },
+      'image/gif': {
+        '.gif': () => fragmentData,
+        '.png': async () => await sharp(fragmentData).png().toBuffer(),
+        '.jpg': async () => await sharp(fragmentData).jpeg().toBuffer(),
+        '.webp': async () => await sharp(fragmentData).webp().toBuffer(),
+        '.avif': async () => await sharp(fragmentData).avif().toBuffer(),
+      },
     };
 
     if (conversions[fragmentType] && conversions[fragmentType][type]) {
       return await conversions[fragmentType][type]();
+      // return await sharp(fragmentData).jpeg().toBuffer();
     }
 
     throw new Error(`Unsupported conversion from ${fragmentType} to ${type}`);
