@@ -100,15 +100,17 @@ jobs:
         # NOTE: this file needs to be made executable *before* you check into git:
         # $ chmod +x ./scripts/local-aws-setup.sh
         run: ./scripts/local-aws-setup.sh
+
       - name: Wait for API to be ready
         run: |
-          echo "Waiting for http://localhost:8080..."
-          for i in {1..10}; do
-            curl --silent http://localhost:8080 && break
-            echo "Waiting for fragments service to start... ($i/10)"
-            sleep 5
+          for i in {1..20}; do
+            echo "⏳ Checking http://localhost:8080..."
+            if curl --silent --fail http://localhost:8080 >/dev/null; then
+              echo "✅ API is up!"
+              break
+            fi
+            sleep 2
           done
-
       - name: Run Hurl Tests
         run: npm run test:integration
 
