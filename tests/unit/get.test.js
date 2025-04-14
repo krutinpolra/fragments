@@ -4,7 +4,13 @@ const request = require('supertest');
 
 const app = require('../../src/app');
 const hash = require('../../src/hash');
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
 const { Fragment } = require('../../src/model/fragment');
+const yaml = require('js-yaml');
+const markdownit = require('markdown-it');
+const csv = require('csvtojson');
 
 describe('GET /v1/fragments', () => {
   // If the request is missing the Authorization header, it should be forbidden
@@ -214,6 +220,175 @@ describe('GET /v1/fragments/:id.ext', () => {
         code: 415,
         message: 'The fragment cannot be converted into the extension specified!',
       },
+    });
+  });
+
+  describe('Original Fragments should be fetched successfully', () => {
+    // Removed unused loadTextBuffer function
+
+    test('Text fragments data is returned in if text fragment ID is passed', async () => {
+      const filePath = path.join(__dirname, '..', 'files', 'file.txt');
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const ownerId = hash('user1@email.com');
+      const id = 'rdmId10';
+      const fragMetadata1 = new Fragment({ id, ownerId, type: 'text/plain' });
+      fragMetadata1.setData(Buffer.from(fileContent));
+      fragMetadata1.save();
+
+      const res = await request(app)
+        .get(`/v1/fragments/${id}`)
+        .auth('user1@email.com', 'password1');
+      expect(res.statusCode).toBe(200);
+      expect(res.text).toBe(fileContent);
+    });
+
+    test('Text fragments data is returned in if fragment ID.txt is passed', async () => {
+      const filePath = path.join(__dirname, '..', 'files', 'file.txt');
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const ownerId = hash('user1@email.com');
+      const id = 'rdmId10';
+      const fragMetadata1 = new Fragment({ id, ownerId, type: 'text/plain' });
+      fragMetadata1.setData(Buffer.from(fileContent));
+      fragMetadata1.save();
+
+      const res = await request(app)
+        .get(`/v1/fragments/${id}.txt`)
+        .auth('user1@email.com', 'password1');
+      expect(res.statusCode).toBe(200);
+      expect(res.text).toBe(fileContent);
+    });
+  });
+
+  describe('Fragment Conversion Tests', () => {
+    const conversions = [
+      {
+        name: 'Markdown',
+        file: 'file.md',
+        mime: 'text/markdown',
+        conversions: [
+          { ext: 'html', expected: (content) => markdownit().render(content) },
+          { ext: 'txt', expected: (content) => content },
+        ],
+      },
+      {
+        name: 'HTML',
+        file: 'file.html',
+        mime: 'text/html',
+        conversions: [{ ext: 'txt', expected: (content) => content }],
+      },
+      {
+        name: 'CSV',
+        file: 'file.csv',
+        mime: 'text/csv',
+        conversions: [
+          { ext: 'txt', expected: (content) => content },
+          {
+            ext: 'json',
+            expected: async (content) => JSON.stringify(await csv().fromString(content)),
+          },
+        ],
+      },
+      {
+        name: 'JSON',
+        file: 'file.json',
+        mime: 'application/json',
+        conversions: [
+          {
+            ext: 'yaml',
+            expected: () =>
+              yaml.dump({
+                student1: 'ABC',
+                student2: 'DEF',
+                student3: 'GHI',
+              }),
+          },
+          {
+            ext: 'yml',
+            expected: () =>
+              yaml.dump({
+                student1: 'ABC',
+                student2: 'DEF',
+                student3: 'GHI',
+              }),
+          },
+          { ext: 'txt', expected: (content) => content },
+        ],
+      },
+      {
+        name: 'YAML',
+        file: 'file.yaml',
+        mime: 'application/yaml',
+        conversions: [{ ext: 'txt', expected: (content) => content }],
+      },
+    ];
+
+    conversions.forEach(({ name, file, mime, conversions }) => {
+      describe(`${name} Fragments should be converted successfully`, () => {
+        conversions.forEach(({ ext, expected }) => {
+          test(`${name} fragment should be converted to .${ext}`, async () => {
+            const filePath = path.join(__dirname, '..', 'files', file);
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            const ownerId = hash('user1@email.com');
+            const id = `convert-${name.toLowerCase()}-${ext}`;
+            const frag = new Fragment({ id, ownerId, type: mime });
+            frag.setData(Buffer.from(fileContent));
+            frag.save();
+
+            const res = await request(app)
+              .get(`/v1/fragments/${id}.${ext}`)
+              .auth('user1@email.com', 'password1');
+
+            expect(res.statusCode).toBe(200);
+
+            const expectedOutput =
+              typeof expected === 'function' ? await expected(fileContent) : expected;
+            expect(res.text).toBe(expectedOutput);
+          });
+        });
+      });
+    });
+
+    const imageConversions = ['png', 'jpg', 'webp', 'gif', 'avif'];
+
+    const imageFormats = [
+      { name: 'PNG', file: 'file.png', mime: 'image/png' },
+      { name: 'JPEG', file: 'file.jpeg', mime: 'image/jpeg' },
+      { name: 'WEBP', file: 'file.webp', mime: 'image/webp' },
+      { name: 'AVIF', file: 'file.avif', mime: 'image/avif' },
+      { name: 'GIF', file: 'file.gif', mime: 'image/gif' },
+    ];
+
+    imageFormats.forEach(({ name, file, mime }) => {
+      describe(`${name} Fragments should be converted successfully`, () => {
+        imageConversions
+          .filter((ext) => ext !== mime.split('/')[1] && !(mime === 'image/jpeg' && ext === 'jpg'))
+          .forEach((ext) => {
+            test(`${name} fragment should be converted to .${ext}`, async () => {
+              const filePath = path.join(__dirname, '..', 'files', file);
+              const fileContent = fs.readFileSync(filePath);
+              const ownerId = hash('user1@email.com');
+              const id = `convert-${name.toLowerCase()}-${ext}`;
+              const frag = new Fragment({ id, ownerId, type: mime });
+              frag.setData(fileContent);
+              frag.save();
+
+              const res = await request(app)
+                .get(`/v1/fragments/${id}.${ext}`)
+                .auth('user1@email.com', 'password1');
+
+              expect(res.statusCode).toBe(200);
+
+              const received = res.body;
+              const sharpExt = ext === 'jpg' ? 'jpeg' : ext;
+              const expected = await sharp(fileContent)[sharpExt]().toBuffer();
+              const receivedMetadata = await sharp(received).metadata();
+              const expectedFormat = sharpExt === 'avif' ? 'heif' : sharpExt;
+
+              expect(receivedMetadata.format).toBe(expectedFormat);
+              expect(Buffer.compare(received, expected)).toBe(0);
+            });
+          });
+      });
     });
   });
 });

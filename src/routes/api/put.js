@@ -8,7 +8,19 @@ const { createSuccessResponse, createErrorResponse } = require('../../response')
 const updateFragment = async (req, res) => {
   // Get fragment ID send by user
   const { id } = req.params;
-  const { type } = contentType.parse(req);
+  const { type } = contentType.parse(req.headers['content-type']);
+  const ownerId = req.user;
+  logger.debug(`update fragment by ID ${id}`);
+
+  // Check if it's supported BEFORE converting
+  if (!Fragment.isSupportedType(type)) {
+    logger.warn({ type }, 'Trying to store unsupported fragment type!');
+    return res
+      .status(415)
+      .json(createErrorResponse(415, 'Unsupported fragment type requested by the client!'));
+  }
+
+  // Now it's safe to parse body
   if (!req.body) {
     logger.error('No body provided in request');
     return res.status(400).json(createErrorResponse(400, 'No data provided in request body'));
@@ -16,7 +28,6 @@ const updateFragment = async (req, res) => {
 
   const fragmentData = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
 
-  const ownerId = req.user;
   logger.debug(`update fragment by ID ${id}`);
 
   if (!Buffer.isBuffer(fragmentData)) {
