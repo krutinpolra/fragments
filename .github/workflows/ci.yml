@@ -103,14 +103,19 @@ jobs:
 
       - name: Wait for API to be ready
         run: |
+          echo "⏳ Waiting for http://localhost:8080 to become available..."
           for i in {1..20}; do
-            echo "⏳ Checking http://localhost:8080..."
-            if curl --silent --fail http://localhost:8080 >/dev/null; then
+            if curl -s http://localhost:8080 | grep -q "ok"; then
               echo "✅ API is up!"
-              break
+              exit 0
             fi
-            sleep 2
+            echo "🕒 Still waiting for http://localhost:8080... ($i/20)"
+            sleep 3
           done
+          echo "❌ Timed out waiting for http://localhost:8080"
+          docker compose logs fragments
+          exit 1
+
       - name: Run Hurl Tests
         run: npm run test:integration
 
