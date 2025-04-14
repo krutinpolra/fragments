@@ -100,9 +100,6 @@ jobs:
         # NOTE: this file needs to be made executable *before* you check into git:
         # $ chmod +x ./scripts/local-aws-setup.sh
         run: ./scripts/local-aws-setup.sh
-      - name: Wait for local server to be ready
-        run: npx wait-on http://localhost:8080
-
       - name: Run Hurl Tests
         run: npm run test:integration
 
