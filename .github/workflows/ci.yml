@@ -101,21 +101,6 @@ jobs:
         # $ chmod +x ./scripts/local-aws-setup.sh
         run: ./scripts/local-aws-setup.sh
 
-      - name: Wait for API to be ready
-        run: |
-          echo "⏳ Waiting for http://localhost:8080 to become available..."
-          for i in {1..20}; do
-            if curl -s http://localhost:8080 | grep -q "ok"; then
-              echo "✅ API is up!"
-              exit 0
-            fi
-            echo "🕒 Still waiting for http://localhost:8080... ($i/20)"
-            sleep 3
-          done
-          echo "❌ Timed out waiting for http://localhost:8080"
-          docker compose logs fragments
-          exit 1
-
       - name: Run Hurl Tests
         run: npm run test:integration
 
